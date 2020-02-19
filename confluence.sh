@@ -44,9 +44,9 @@
 #                   Defaults to:
 #
 #                       PUSH:
-#                           https://wiki.ingramcontent.com/rest/api/content/
+#                           https://<confluence hostname>/rest/api/content/
 #                       PULL:
-#                           https://wiki.ingramcontent.com/download/attachments/
+#                           https://<confluence hostname>/download/attachments/
 #
 #                   If urlbase is supplied, then it is assumed to be a fully
 #                   qualified path to a file for pulling, or a fully qualified
@@ -54,7 +54,7 @@
 #                   the value (action, filename, pageid).
 #
 #                   Example 1 (PUSH):
-#                       --urlbase https://wiki.ingramcontent.com/rest/api/content/43001610/child/attachment
+#                       --urlbase https://<confluence hostname>/rest/api/content/<pageid>/child/attachment
 #
 #                       would be mined to yield:
 #                           action=push     - because the url contains the 
@@ -62,7 +62,7 @@
 #                           pageid=43001610 - because the pageid is the third
 #                                             element from the end using IFS=/
 #                   Example 2 (PULL):
-#                       --urlbase https://wiki.ingramcontent.com/download/attachments/43001610/C-BPN-TEST.pdf?api=v2
+#                       --urlbase https://<confluence hostname>/download/attachments/<pageid>/C-BPN-TEST.pdf?api=v2
 #
 #                       would be mined to yield:
 #                           action=pull             - because the url contains 
@@ -95,7 +95,7 @@ SUCCESS=0
 ERROR=1
 STDOUT_OFFSET="    "
 
-INGRAM_WIKI="https://wiki.ingramcontent.com"
+CONFLUENCE_URL="" # URL of your on-prem Atlassian Confluence instance
 
 SCRIPT_NAME="${0}"
 
@@ -162,6 +162,18 @@ f__check_command() {
 # MAIN
 ################################################################################
 #
+
+# WHAT: Make sure CONFLUENCE_URL is set
+# WHY:  Cannot proceed otherwise
+#
+if [ ${exit_code} -eq ${SUCCESS} ]; then
+
+    if [ -z "${CONFLUENCE_URL}" ]; then
+        err_msg="Please make sure the variable 'CONFLUENCE_URL' is defined in this script"
+        let exit_code=${ERROR}
+    fi
+
+fi
 
 # WHAT: Make sure we have some useful commands
 # WHY:  Cannot proceed otherwise
@@ -283,12 +295,12 @@ if [ ${exit_code} -eq ${SUCCESS} ]; then
 
     ## Examples
     ## Push a file into confluence as a page attachment
-    #curl -D- -u <username>:<password> -X POST -H "X-Atlassian-Token: nocheck" -F "file=@C-BPN-TEST.pdf" https://wiki.ingramcontent.com/rest/api/content/43001610/child/attachment
+    #curl -D- -u <username>:<password> -X POST -H "X-Atlassian-Token: nocheck" -F "file=@<file name>" https://<confluence hostname>/rest/api/content/<pageid>/child/attachment
     ##
     ## Pull a page attachment from confluence
-    #curl -X GET -u <username>:<password> https://wiki.ingramcontent.com/download/attachments/43001610/C-BPN-TEST.pdf?api=v2 > "C-BPN-TEST.pdf"
+    #curl -X GET -u <username>:<password> https://<confluence hostname>/download/attachments/<pageid>/<file name>?api=v2 > "<file name>"
     ## Pull a specific attachment version from confluence
-    #curl -X GET -u <username>:<password> https://wiki.ingramcontent.com/download/attachments/43001610/C-BPN-TEST.pdf?version=7 > "C-BPN-TEST.pdf"
+    #curl -X GET -u <username>:<password> https://<confluence hostname>/download/attachments/<pageid>/<file name>?version=7 > "<file name>"
 
     case ${action} in 
 
@@ -302,7 +314,7 @@ if [ ${exit_code} -eq ${SUCCESS} ]; then
                     #urlbase_params="${urlbase_params}?${file_version}"
                 fi
      
-                urlbase="${INGRAM_WIKI}/download/attachments/${pageid}/${remote_filename}?${urlbase_params}"
+                urlbase="${CONFLUENCE_URL}/download/attachments/${pageid}/${remote_filename}?${urlbase_params}"
             fi
 
             if [ "${debug}" = "" ]; then
@@ -343,29 +355,13 @@ if [ ${exit_code} -eq ${SUCCESS} ]; then
             curl_command="${my_curl} -u ${username}:${password} -X GET ${urlbase} > ${filename} 2> /dev/null"
         ;;
 
-#        push)
-#
-#            if [ -e "${filename}" ]; then
-#
-#                if [ "${urlbase}" = "" ]; then
-#                    urlbase="${INGRAM_WIKI}/rest/api/content/${pageid}/child/attachment"
-#                fi
-#
-#                curl_command="${my_curl} -D- -u ${username}:${password} -X POST -H \"X-Atlassian-Token: nocheck\" -F \"file=@${filename}\" ${urlbase} 2> /dev/null"
-#            else
-#                err_msg="Could not find file \"${filename}\""
-#                exit_code=${ERROR}
-#            fi
-#
-#        ;;
-
         push)
 
             if [ -e "${filename}" ]; then
                 minoredit=""
 
                 if [ "${urlbase}" = "" ]; then
-                    urlbase="${INGRAM_WIKI}/rest/api/content/${pageid}/child/attachment"
+                    urlbase="${CONFLUENCE_URL}/rest/api/content/${pageid}/child/attachment"
                 fi
 
                 # See if file exists already
@@ -378,7 +374,7 @@ if [ ${exit_code} -eq ${SUCCESS} ]; then
                     # create a new version of the same name
                     if [ "${attachmentid}" != "" ]; then
                         minoredit="-F\"minorEdit=false\""
-                        urlbase="${INGRAM_WIKI}/rest/api/content/${pageid}/child/attachment/${attachmentid}/data"
+                        urlbase="${CONFLUENCE_URL}/rest/api/content/${pageid}/child/attachment/${attachmentid}/data"
                     fi
 
                 fi
